@@ -1,4 +1,4 @@
-module github.com/carlosonunez/example-app
+module github.com/carlosonunez/example-app-frontend
 
 go 1.21
 
