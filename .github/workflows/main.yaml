@@ -1,0 +1,119 @@
+---
+name: Deploy the example Cloud Native app
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - README.md
+      - cscope*
+      - tags
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        name: Checkout
+
+      - uses: KengoTODA/actions-setup-docker-compose@main
+        name: Setup Docker Compose
+        with:
+          version: '2.21.0'
+
+      - name: Run unit tests
+        run: make unit-tests
+  build-and-push-images:
+    name: Build and Push Images
+    needs:
+      - unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        name: Checkout
+
+      - uses: KengoTODA/actions-setup-docker-compose@main
+        name: Setup Docker Compose
+        with:
+          version: '2.21.0'
+
+      - name: Build images
+        run: make build
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
+
+      - name: Push images
+        run: make push-images
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
+  integration-tests:
+    name: Integration Tests
+    needs:
+      - unit
+      - build-and-push-images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        name: Checkout
+
+      - uses: KengoTODA/actions-setup-docker-compose@main
+        name: Setup Docker Compose
+        with:
+          version: '2.21.0'
+
+      - name: Setup integration env
+        run: make integration-setup
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
+
+      - name: Deploy app into integration environment
+        run: make integration-deploy
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
+
+      - name: Run integration tests
+        run: make integration-tests
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
+
+      # REACH GOAL: Add BDD-style tests here.
+      # - name: Exploratory tests
+      #   run: make feature-tests-integration
+      #   env:
+      #     ENV_PASSWORD: ${{ secrets.env_password }}
+      
+      - name: Destroy integration env
+        run: make integration-destroy
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
+  deploy-production:
+    name: Deploy to Production
+    needs:
+      - unit
+      - build-and-push-images
+      - integration-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        name: Checkout
+
+      - uses: KengoTODA/actions-setup-docker-compose@main
+        name: Setup Docker Compose
+        with:
+          version: '2.21.0'
+
+      - name: Update production environment
+        run: make production-setup
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
+
+      - name: Deploy app into production environment
+        run: make production-deploy
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
+
+      # REACH GOAL: Add BDD-style tests here.
+      # - name: Exploratory tests
+      #   run: make feature-tests-production
+      #   env:
+      #     ENV_PASSWORD: ${{ secrets.env_password }}
