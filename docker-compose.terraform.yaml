@@ -1,0 +1,42 @@
+version: '2.6'
+volumes:
+  tf-data: {}
+services:
+  terraform:
+    image: hashicorp/terraform:1.6.5
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_REGION
+      - TF_DATA_DIR=/terraform-data
+      - TF_WORKSPACE=$ENVIRONMENT
+    volumes:
+      - tfdata:/terraform-data
+      - $PWD/infra:/infra
+    working_dir: /infra
+  terraform-init:
+    extends: terraform
+    entrypoint: bash
+    command:
+      - -c
+      - |
+        cat >/backend.tfvars <<-EOF
+        bucket = $TERRAFORM_STATE_S3_BUCKET
+        key = $TERRAFORM_STATE_S3_KEY
+        EOF
+        terraform init -backend-config=/backend.tfvars
+  terraform-plan:
+    extends: terraform
+    command:
+      - plan
+      - input=false
+  terraform-apply:
+    extends: terraform
+    command:
+      - apply
+      - -auto-approve
+  terraform-destroy:
+    extends: terraform
+    command:
+      - destroy
+      - -auto-approve
