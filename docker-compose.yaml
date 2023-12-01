@@ -21,7 +21,6 @@ services:
     image: golang:1.21-alpine
     volumes:
       - $PWD/app/frontend:/go/github.com/carlosonunez/example-app/src
-      - $PWD/app/frontend/bin:/go/github.com/carlosonunez/example-app/bin
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
     working_dir: /go/github.com/carlosonunez/example-app/src
@@ -34,7 +33,6 @@ services:
     image: golang:1.21-alpine
     volumes:
       - $PWD/app/backend:/go/github.com/carlosonunez/example-app/src
-      - $PWD/app/backend/bin:/go/github.com/carlosonunez/example-app/bin
       - gocache:/root/.cache/go-build
       - gomod:/go/pkg/mod
     working_dir: /go/github.com/carlosonunez/example-app/src
