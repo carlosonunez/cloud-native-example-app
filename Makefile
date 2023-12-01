@@ -5,34 +5,32 @@ APP_NAME=example-cloud-native-app
 # Hide orphaned container warnings that can appear if docker-compose doesn't
 # "down" entirely.
 DOCKER_COMPOSE := docker-compose --log-level INFO
-DOCKER_COMPOSE_CI := docker-compose --log-level INFO -f docker-compose.ci.yaml
+DOCKER_COMPOSE_CI := docker-compose --log-level INFO -f docker-compose.ci.yml
 DOCKER_COMPOSE_TERRAFORM := docker-compose --log-level INFO -f docker-compose.terraform.yaml
-
-# Include our dotenv to Make's local scope so that we can access variables
-# without shelling out.
-include ./.env
+COMMIT_SHA := $(shell git rev-parse --short HEAD)
 
 .PHONY: build push \
 	unit-setup unit-tests unit-teardown \
 	integration-setup integration-deploy integration-tests integration-teardown \
 	production-setup production-deploy
 
-build: _decrypt_dotenv
+build: decrypt_production_dotenv
 build:
+	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
 	for service in frontend backend; \
 	do \
-		dockerfile="$(PWD)/$${service}.Dockerfile"; \
-		image_name="$(IMAGE_REPO)/$(APP_NAME)-$$service:$(COMMIT_SHA)"; \
-		docker build -t "$$image_name" -f "$$dockerfile" .; \
+		image_name="$$IMAGE_REPO/$(APP_NAME)-$$service:$(COMMIT_SHA)"; \
+		docker build -t "$$image_name" --build-arg app="$$service" .; \
 	done
 
-push: _decrypt_dotenv
+push: decrypt_production_dotenv
 push:
-	docker login "$(IMAGE_REPO)" --username "$(IMAGE_REPO_USERNAME)" \
-		--password "$(IMAGE_REPO_PASSWORD)" &&
+	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
+	docker login "$$IMAGE_REPO" --username "$$IMAGE_REPO_USERNAME" \
+		--password "$$IMAGE_REPO_PASSWORD" && \
 		for service in frontend backend; \
 		do \
-			image_name="$(IMAGE_REPO)/$(APP_NAME)-$${service}:$(COMMIT_SHA)"; \
+			image_name="$$IMAGE_REPO/$(APP_NAME)-$${service}:$(COMMIT_SHA)"; \
 			docker push "$$image_name"; \
 		done
 
@@ -73,7 +71,7 @@ integration-deploy:
 	export ENVIRONMENT=integration; \
 	$(DOCKER_COMPOSE) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
 	host_name=$$($(DOCKER_COMPOSE) run --rm terraform-output 
-	image_name="$(IMAGE_REPO)/$(APP_NAME):$(COMMIT_SHA)"; \
+	image_name="$$IMAGE_REPO/$(APP_NAME):$(COMMIT_SHA)"; \
 	$(HELM) upgrade \
 		--kubeconfig /tmp/kubeconfig \
 		--set image_name="$$image_name" \
@@ -108,8 +106,8 @@ production-deploy:
 	export ENVIRONMENT=production; \
 	$(DOCKER_COMPOSE) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
 	host_name=$$($(DOCKER_COMPOSE) run --rm terraform-output 
-	frontend_image_name="$(IMAGE_REPO)/$(APP_NAME)-frontend:$(COMMIT_SHA)"; \
-	backend_image_name="$(IMAGE_REPO)/$(APP_NAME)-backend:$(COMMIT_SHA)"; \
+	frontend_image_name="$$IMAGE_REPO/$(APP_NAME)-frontend:$(COMMIT_SHA)"; \
+	backend_image_name="$$IMAGE_REPO/$(APP_NAME)-backend:$(COMMIT_SHA)"; \
 	$(HELM) upgrade \
 		--kubeconfig /tmp/kubeconfig \
 		--set frontend_image_name="$$frontend_image_name" \
@@ -119,16 +117,18 @@ production-deploy:
 
 encrypt_production_dotenv:
 	export ENVIRONMENT=production; \
-	$(DOCKER_COMPOSE_CI) run --rm encrypt-dotenv;
+	$(DOCKER_COMPOSE_CI) run --rm encrypt-env;
 
 decrypt_production_dotenv:
+	test -f $(PWD)/.env.production && exit 0; \
 	export ENVIRONMENT=production; \
-	$(DOCKER_COMPOSE_CI) run --rm decrypt-dotenv;
+	$(DOCKER_COMPOSE_CI) run --rm decrypt-env;
 
 encrypt_integration_dotenv:
 	export ENVIRONMENT=integration; \
 	$(DOCKER_COMPOSE_CI) run --rm encrypt-dotenv;
 
 decrypt_integration_dotenv:
+	test -f $(PWD)/.env.integration && exit 0; \
 	export ENVIRONMENT=integration; \
 	$(DOCKER_COMPOSE_CI) run --rm decrypt-dotenv;
