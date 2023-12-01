@@ -9,7 +9,8 @@ services:
       args:
         app: frontend
     environment:
-      BACKEND_URL: http://backend:8080
+      BACKEND_URL: http://localhost:8081
+      DISABLE_CORS_THIS_IS_UNSAFE: "true"
     ports:
       - 8080:8080
   backend:
@@ -17,6 +18,10 @@ services:
       context: .
       args:
         app: backend
+    environment:
+      DISABLE_CORS_THIS_IS_UNSAFE: "true"
+    ports:
+      - 8081:8080
   unit-tests-frontend:
     image: golang:1.21-alpine
     volumes:

@@ -27,7 +27,8 @@ function runTheCheck() {
 		var DONE = 4;
 		if (xhr.readyState == DONE) {
 			if (xhr.status == 200) {
-				resultDiv.innerHTML = "<p>Backend is up! Message: " + xhr.responseText;
+				result = JSON.parse(xhr.responseText);
+				resultDiv.innerHTML = "<p>Backend is up! Message: " + result.message;
 			} else {
 				resultDiv.innerHTML = "<p>Backend is not up.</p>";
 			}
@@ -66,6 +67,12 @@ func renderIndex(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, err.Error())
 	} else {
+		fmt.Fprintf(os.Stderr, "Disabling CORS? %s\n", os.Getenv("DISABLE_CORS_THIS_IS_UNSAFE"))
+		if os.Getenv("DISABLE_CORS_THIS_IS_UNSAFE") == "true" {
+			fmt.Fprint(os.Stdout, "WARNING: Disabling CORS to backend running on localhost\n")
+			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8081")
+			w.Header().Set("Vary", "Origin")
+		}
 		fmt.Fprint(w, html)
 	}
 }
