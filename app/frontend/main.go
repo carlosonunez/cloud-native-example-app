@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -16,9 +15,6 @@ type templateContext struct {
 }
 
 func indexPage() (string, error) {
-	if os.Getenv("BACKEND_URL") == "" {
-		return "", errors.New("Please define BACKEND_URL in the environment")
-	}
 	t, err := template.New("page").Parse(`<html>
 <head>
 	<title>{{ .Title }}</title>
@@ -72,4 +68,13 @@ func renderIndex(w http.ResponseWriter, r *http.Request) {
 	} else {
 		fmt.Fprint(w, html)
 	}
+}
+
+func main() {
+	if os.Getenv("BACKEND_URL") == "" {
+		fmt.Fprint(os.Stderr, "Please define BACKEND_URL in the environment")
+		os.Exit(1)
+	}
+	http.HandleFunc("/", renderIndex)
+	http.ListenAndServe("0.0.0.0:8080", nil)
 }
