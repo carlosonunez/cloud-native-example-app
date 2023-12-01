@@ -1,0 +1,29 @@
+version: '2.2'
+services:
+  gpg:
+    build:
+      dockerfile: gpg.Dockerfile
+      context: .
+    entrypoint:
+      - gpg
+    working_dir: /app
+    volumes:
+      - $PWD:/app
+  encrypt-env:
+    extends: gpg
+    command:
+      - --batch
+      - --yes
+      - --passphrase=$ENV_PASSWORD
+      - --output=env.$ENVIRONMENT.gpg
+      - --symmetric
+      - .env.$ENVIRONMENT
+  decrypt-env:
+    extends: gpg
+    command:
+      - --decrypt
+      - --batch
+      - --yes
+      - --passphrase=$ENV_PASSWORD
+      - --output=.env.$ENVIRONMENT
+      - env.$ENVIRONMENT.gpg
