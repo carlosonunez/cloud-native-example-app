@@ -94,8 +94,9 @@ integration-tests:
 
 integration-teardown: decrypt_integration_dotenv
 integration-teardown:
+	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
-	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init &&
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-destroy
 
 # NOTE: production-{setup,deploy}
