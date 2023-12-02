@@ -31,10 +31,12 @@ services:
           fi
         fi
         >&2 echo "INFO: Renewing AWS session token."
+        token_duration_minutes=15; \
         aws_token=$(aws sts assume-role \
           --role-arn "$AWS_ROLE_ARN" \
           --external-id "$AWS_STS_EXTERNAL_ID" \
           --role-session-name "$AWS_SESSION_NAME" \
+          --duration-seconds $$((60*$$token_duration_minutes)) \
            --query 'join(``, [
                     `\nexport `, `AWS_ACCESS_KEY_ID=`, Credentials.AccessKeyId,
                     `\nexport `, `AWS_SECRET_ACCESS_KEY=`, Credentials.SecretAccessKey,
@@ -42,5 +44,5 @@ services:
                     ])' \
           --output text) || exit 1
         date -d '+1 hour' +%s > /tmp/aws_token_exp
-        >&2 echo "INFO: Token renewed; expires in an hour."
+        >&2 echo "INFO: Token renewed; expires in $$token_duration_minutes minutes."
         echo "$$aws_token" | tee /tmp/aws_token
