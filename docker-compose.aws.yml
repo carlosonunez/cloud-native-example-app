@@ -1,0 +1,46 @@
+version: '2.2'
+services:
+  aws:
+    image: amazon/aws-cli:2.2.9
+    env_file: .env
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_ROLE_ARN
+      - AWS_SESSION_NAME
+      - AWS_SESSION_TOKEN
+  obtain-aws-session-credentials:
+    extends: aws
+    environment:
+      AWS_SESSION_TOKEN: ""
+    volumes:
+      - ${TMPDIR:-/tmp}/.aws-sts-token-data:/tmp
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        if test -f /tmp/aws_token && test -f /tmp/aws_token_exp
+        then
+          now=$(date +%s)
+          exp=$(cat /tmp/aws_token_exp)
+          if test -z "$$exp" || test "$$now" -lt "$$exp"
+          then
+            >&2 echo "INFO: Existing unexpired token; returning"
+            cat /tmp/aws_token
+            exit 0
+          fi
+        fi
+        >&2 echo "INFO: Renewing AWS session token."
+        aws_token=$(aws sts assume-role \
+          --role-arn "$AWS_ROLE_ARN" \
+          --external-id "$AWS_STS_EXTERNAL_ID" \
+          --role-session-name "$AWS_SESSION_NAME" \
+           --query 'join(``, [
+                    `\nexport `, `AWS_ACCESS_KEY_ID=`, Credentials.AccessKeyId,
+                    `\nexport `, `AWS_SECRET_ACCESS_KEY=`, Credentials.SecretAccessKey,
+                    `\nexport `, `AWS_SESSION_TOKEN=`, Credentials.SessionToken
+                    ])' \
+          --output text) || exit 1
+        date -d '+1 hour' +%s > /tmp/aws_token_exp
+        >&2 echo "INFO: Token renewed; expires in an hour."
+        echo "$$aws_token" | tee /tmp/aws_token

@@ -7,6 +7,7 @@ APP_NAME=example-cloud-native-app
 DOCKER_COMPOSE := docker-compose --log-level INFO
 DOCKER_COMPOSE_CI := docker-compose --log-level INFO -f docker-compose.ci.yml
 DOCKER_COMPOSE_TERRAFORM := docker-compose --log-level INFO -f docker-compose.terraform.yaml
+DOCKER_COMPOSE_AWS := docker-compose --log-level INFO -f docker-compose.aws.yml
 COMMIT_SHA := $(shell git rev-parse --short HEAD)
 HELM := $(DOCKER_COMPOSE_CI) run --rm helm --kubeconfig /tmp/kubeconfig
 
@@ -63,6 +64,7 @@ unit-teardown:
 integration-setup: decrypt_integration_dotenv
 integration-setup:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
+	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	export ENVIRONMENT=integration; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply
@@ -71,6 +73,8 @@ integration-setup-preview: decrypt_integration_dotenv
 integration-setup-preview:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
+	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	env | grep AWS; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-plan
 
@@ -79,6 +83,7 @@ integration-deploy:
 	set -eo pipefail; \
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
+	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
 	image_name="$$IMAGE_REPO/$(APP_NAME):$(COMMIT_SHA)"; \
 	$(HELM) upgrade \
@@ -96,6 +101,7 @@ integration-teardown: decrypt_integration_dotenv
 integration-teardown:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
+	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-destroy
 
@@ -106,6 +112,8 @@ integration-teardown:
 production-setup: decrypt_production_dotenv
 production-setup:
 	export ENVIRONMENT=production; \
+	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
+	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init &&
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply
 
@@ -113,6 +121,9 @@ production-deploy: decrypt_production_dotenv write_kubeconfig_production
 production-deploy:
 	set -eo pipefail; \
 	export ENVIRONMENT=production; \
+	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
+	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
 	frontend_image_name="$$IMAGE_REPO/$(APP_NAME)-frontend:$(COMMIT_SHA)"; \
 	backend_image_name="$$IMAGE_REPO/$(APP_NAME)-backend:$(COMMIT_SHA)"; \
 	$(HELM) upgrade \
@@ -148,3 +159,17 @@ write_kubeconfig_production:
 	rm /tmp/kubeconfig; \
 	export ENVIRONMENT=production; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig;
+
+# NOTE: The directory we're using to cache AWS tokens is `mkdir`ed ahead of time to work around
+# `EPERM` errors that occur with container engines that use sshfs to mount directories into the
+# containerd VM, like Lima. This is still an open issue as of 2023-12-02.
+# https://github.com/lima-vm/lima/issues/231
+generate_temp_aws_credentials:
+	mkdir -p $${TMPDIR:-/tmp}/.aws-sts-token-data; \
+	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
+	export AWS_SESSION_NAME=$(APP_NAME)-aws-session; \
+	aws_session=$$($(DOCKER_COMPOSE_AWS) run --rm obtain-aws-session-credentials | sed -E 's/(^"|"$$)//'); \
+	if test -z "$$aws_session"; \
+	then >&2 echo "ERROR: Unable to receive creds from AWS with AK/SK provided." && exit 1; \
+	fi; \
+	echo -e "$$aws_session" | grep -Ev '^$$';

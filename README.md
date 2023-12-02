@@ -31,11 +31,44 @@ This project spins up an AWS Elastic Kubernetes Services (EKS) cluster with a
 single `t3g.medium` spot worker. As such, you'll need an AWS account in order to run
 the integration tests.
 
+**At this time of writing, this will cost ~$0.15/hr to operate.**
+
 [Go
 here](https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-creating.html)
 to learn how to create an AWS account if you do not already have one.
 
-**At this time of writing, this will cost ~$0.15/hr to operate.**
+### Configuring IAM
+
+Once you've created your AWS account, you will need to create a user that can
+assume the `AWSAdministrator` role within AWS Identity Access Management (IAM)
+via the AWS Security Token Service (STS). STS prevents you from having to
+create an overly-privileged superuser within IAM by issuing temporary tokens
+that expire within a short duration (less than 12 hours).
+
+Download and install the AWS CLI if you have not already done so.
+
+Once done, [visit this
+page](https://repost.aws/knowledge-center/iam-assume-role-cli) to learn how to
+do this, then in your `env.integration` and `env.production` dotenvs, populate
+the following:
+
+```sh
+AWS_ACCESS_KEY_ID=$IAM_USER_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY=$IAM_USER_SECRET_ACCESS_KEY
+AWS_ROLE_ARN=$NAME_OF_ROLE_THAT_YOU_CREATED
+# see the note below to learn how to generate this
+AWS_EXTERNAL_ID=$EXTERNAL_ID_FOR_THE_ROLE_THAT_YOU_CREATED
+```
+
+> ✅ **NOTE**: External IDs are kind-of like passwords for accounts trying to
+> assume roles. They prevent unknown users from trying to assume roles. Add the
+> JSON to your trust policy JSON document to add an "external ID" to the IAM
+> role's trust policy JSON document:
+>
+> ```json
+> "Condition": {"StringEquals": {"sts:ExternalId": "$RANDOM_PASSWORD"}}
+> ```
+
 
 ### Environment dotfiles (dotenvs)
 
