@@ -1,5 +1,9 @@
 version: '2.2'
 services:
+  helm:
+    build:
+      dockerfile: helm.Dockerfile
+      context: .
   gpg:
     build:
       dockerfile: gpg.Dockerfile

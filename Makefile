@@ -8,6 +8,7 @@ DOCKER_COMPOSE := docker-compose --log-level INFO
 DOCKER_COMPOSE_CI := docker-compose --log-level INFO -f docker-compose.ci.yml
 DOCKER_COMPOSE_TERRAFORM := docker-compose --log-level INFO -f docker-compose.terraform.yaml
 COMMIT_SHA := $(shell git rev-parse --short HEAD)
+HELM := $(DOCKER_COMPOSE_CI) run --rm helm --kubeconfig /tmp/kubeconfig
 
 .PHONY: build push \
 	unit-setup unit-tests unit-teardown \
@@ -130,9 +131,19 @@ decrypt_production_dotenv:
 
 encrypt_integration_dotenv:
 	export ENVIRONMENT=integration; \
-	$(DOCKER_COMPOSE_CI) run --rm encrypt-dotenv;
+	$(DOCKER_COMPOSE_CI) run --rm encrypt-env;
 
 decrypt_integration_dotenv:
 	test -f $(PWD)/.env.integration && exit 0; \
 	export ENVIRONMENT=integration; \
-	$(DOCKER_COMPOSE_CI) run --rm decrypt-dotenv;
+	$(DOCKER_COMPOSE_CI) run --rm decrypt-env;
+
+write_kubeconfig_integration:
+	rm -f /tmp/kubeconfig; \
+	export ENVIRONMENT=integration; \
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig;
+
+write_kubeconfig_production:
+	rm /tmp/kubeconfig; \
+	export ENVIRONMENT=production; \
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig;
