@@ -61,19 +61,26 @@ unit-teardown:
 # to complete their tests.
 integration-setup: decrypt_integration_dotenv
 integration-setup:
+	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
-	$(DOCKER_COMPOSE) run --rm terraform-init &&
-	$(DOCKER_COMPOSE) run --rm terraform-apply
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply
 
-integration-deploy: decrypt_integration_dotenv
+integration-setup-preview: decrypt_integration_dotenv
+integration-setup-preview:
+	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
+	export ENVIRONMENT=integration; \
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-plan
+
+integration-deploy: decrypt_integration_dotenv write_kubeconfig_integration
 integration-deploy:
 	set -eo pipefail; \
+	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
-	$(DOCKER_COMPOSE) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
-	host_name=$$($(DOCKER_COMPOSE) run --rm terraform-output 
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
 	image_name="$$IMAGE_REPO/$(APP_NAME):$(COMMIT_SHA)"; \
 	$(HELM) upgrade \
-		--kubeconfig /tmp/kubeconfig \
 		--set image_name="$$image_name" \
 		$(APP_NAME) \
 		./chart
@@ -100,16 +107,13 @@ production-setup:
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init &&
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply
 
-production-deploy: decrypt_production_dotenv
+production-deploy: decrypt_production_dotenv write_kubeconfig_production
 production-deploy:
 	set -eo pipefail; \
 	export ENVIRONMENT=production; \
-	$(DOCKER_COMPOSE) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
-	host_name=$$($(DOCKER_COMPOSE) run --rm terraform-output 
 	frontend_image_name="$$IMAGE_REPO/$(APP_NAME)-frontend:$(COMMIT_SHA)"; \
 	backend_image_name="$$IMAGE_REPO/$(APP_NAME)-backend:$(COMMIT_SHA)"; \
 	$(HELM) upgrade \
-		--kubeconfig /tmp/kubeconfig \
 		--set frontend_image_name="$$frontend_image_name" \
 		--set backend_image_name="$$backend_image_name" \
 		$(APP_NAME) \

@@ -1,3 +1,5 @@
 cscope.*
 tags
 .env*
+terraform.*
+.terraform.*
