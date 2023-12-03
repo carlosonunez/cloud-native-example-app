@@ -31,25 +31,18 @@ module "eks" {
   subnet_ids               = module.vpc.private_subnets
   control_plane_subnet_ids = module.vpc.public_subnets
   eks_managed_node_group_defaults = {
-    instance_types = ["t4g.large"]
+    instance_types = ["t4g.medium"]
     capacity_type  = "SPOT"
     desired_size   = 1
     min_size       = 1
+    max_size       = 1
   }
-  aws_auth_users = [
-    {
-      userarn  = data.aws_caller_identity.self.arn
-      username = "self"
-      groups   = ["system:masters"]
+  eks_managed_node_groups = {
+    default = {
+      ami_type = "BOTTLEROCKET_ARM_64"
     }
+  }
+  aws_auth_accounts = [
+    data.aws_caller_identity.self.account_id
   ]
-}
-
-module "eks-kubeconfig" {
-  depends_on = [
-    module.eks
-  ]
-  source       = "hyperbadger/eks-kubeconfig/aws"
-  version      = "2.0.0"
-  cluster_name = module.eks.cluster_name
 }

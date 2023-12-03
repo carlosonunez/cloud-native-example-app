@@ -154,14 +154,20 @@ decrypt_integration_dotenv:
 	$(DOCKER_COMPOSE_CI) run --rm decrypt-env;
 
 write_kubeconfig_integration:
-	rm -f /tmp/kubeconfig; \
+	rm -rf /tmp/kubeconfig; \
+	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
+	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	export ENVIRONMENT=integration; \
-	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig;
+	export CLUSTER_NAME=$$($(DOCKER_COMPOSE_TERRAFORM) run --rm terraform output -raw cluster_name) || exit 1; \
+	$(DOCKER_COMPOSE_AWS) run --rm update-eks-kubeconfig; \
 
 write_kubeconfig_production:
-	rm /tmp/kubeconfig; \
+	rm -rf /tmp/kubeconfig; \
+	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
+	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	export ENVIRONMENT=production; \
-	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig;
+	export CLUSTER_NAME=$$($(DOCKER_COMPOSE_TERRAFORM) run --rm terraform output -raw cluster_name) || exit 1; \
+	$(DOCKER_COMPOSE_AWS) run --rm update-eks-kubeconfig; \
 
 # NOTE: The directory we're using to cache AWS tokens is `mkdir`ed ahead of time to work around
 # `EPERM` errors that occur with container engines that use sshfs to mount directories into the

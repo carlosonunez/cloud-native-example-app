@@ -1,4 +1,3 @@
-output "kubeconfig" {
-  value = module.eks-kubeconfig.kubeconfig
-  sensitive = true
+output "cluster_name" {
+  value = module.eks.cluster_name
 }

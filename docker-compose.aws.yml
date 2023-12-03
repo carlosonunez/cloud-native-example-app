@@ -9,6 +9,42 @@ services:
       - AWS_ROLE_ARN
       - AWS_SESSION_NAME
       - AWS_SESSION_TOKEN
+      - AWS_REGION
+  update-eks-kubeconfig:
+    extends: aws
+    volumes:
+      - ${TMPDIR:-/tmp}:/tmp
+    environment:
+      - CLUSTER_NAME
+    # This command writes a kubeconfig that does not require retrieving
+    # a token via the aws-cli at runtime.
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        server=$(aws eks describe-cluster --name "$CLUSTER_NAME" --query 'cluster.endpoint' --output text)
+        token=$(aws eks get-token --cluster-name "$CLUSTER_NAME" --query 'status.token' --output text)
+        cert_data=$(aws eks describe-cluster --name "$CLUSTER_NAME" --query 'cluster.certificateAuthority.data' --output text)
+        cat >/tmp/kubeconfig <<-EOF
+        apiVersion: v1
+        kind: Config
+        preferences: {}
+        current-context: context
+        clusters:
+          - name: cluster
+            cluster:
+              certificate-authority-data: $$cert_data
+              server: $$server
+        users:
+          - name: user
+            user:
+              token: $$token
+        contexts:
+          - name: context
+            context:
+              cluster: cluster
+              user: user
+        EOF
   obtain-aws-session-credentials:
     extends: aws
     environment:
