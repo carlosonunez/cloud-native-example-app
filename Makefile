@@ -1,15 +1,23 @@
 SHELL := /usr/bin/env bash
 MAKEFLAGS += --silent
-APP_NAME=example-cloud-native-app
+APP_NAME := example-cloud-native-app
+APP_NAMESPACE := $(APP_NAME)
 
 # Hide orphaned container warnings that can appear if docker-compose doesn't
 # "down" entirely.
+TMPDIR ?= /tmp
 DOCKER_COMPOSE := docker-compose --log-level ERROR
 DOCKER_COMPOSE_CI := docker-compose --log-level ERROR -f docker-compose.ci.yml
 DOCKER_COMPOSE_TERRAFORM := docker-compose --log-level ERROR -f docker-compose.terraform.yaml
 DOCKER_COMPOSE_AWS := docker-compose --log-level ERROR -f docker-compose.aws.yml
 COMMIT_SHA := $(shell git rev-parse --short HEAD)
 HELM := $(DOCKER_COMPOSE_CI) run --rm helm --kubeconfig /tmp/kubeconfig
+KUBECTL := kubectl --kubeconfig $(TMPDIR)/kubeconfig
+KUBECTL_IN_APP_NS := $(KUBECTL) --namespace $(APP_NAMESPACE)
+HELM_IN_APP_NS := $(HELM) --namespace $(APP_NAMESPACE)
+
+# You'll need to add an entry to /etc/hosts to hit this.
+HOSTNAME := example.com
 
 # There's no other way to escape percent signs in Make (that I know of).
 PERCENT := %
@@ -70,7 +78,24 @@ integration-setup:
 	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	export ENVIRONMENT=integration; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
-	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply && \
+	$(MAKE) configure-cluster-integration
+
+configure-cluster-integration: write_kubeconfig_integration
+configure-cluster-integration:
+	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
+	$(KUBECTL) get ns $(APP_NAMESPACE) &>/dev/null || $(KUBECTL) create ns $(APP_NAMESPACE) && \
+	$(KUBECTL_IN_APP_NS) get secret registry &>/dev/null || \
+			$(KUBECTL_IN_APP_NS) create secret docker-registry registry \
+		--docker-server="$$IMAGE_REPO" \
+		--docker-username="$$IMAGE_REPO_USERNAME" \
+		--docker-password="$$IMAGE_REPO_PASSWORD" && \
+	$(KUBECTL_IN_APP_NS) patch serviceaccount default \
+		-p '{"imagePullSecrets":[{"name":"registry"}]}' && \
+	$(HELM) upgrade --install ingress-nginx ingress-nginx \
+  --repo https://kubernetes.github.io/ingress-nginx \
+  --namespace ingress-nginx --create-namespace
+
 
 integration-setup-preview: decrypt_integration_dotenv
 integration-setup-preview:
@@ -86,12 +111,11 @@ integration-deploy:
 	set -eo pipefail; \
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
-	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
-	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
 	image_name_template="$$IMAGE_REPO/$(APP_NAME)-$(PERCENT)s:$(COMMIT_SHA)"; \
-	$(HELM) upgrade \
+	$(HELM_IN_APP_NS) upgrade --install \
 		--set frontend_image_name="$$(printf "$$image_name_template" frontend)" \
 		--set backend_image_name="$$(printf "$$image_name_template" backend)" \
+		--set ingress.hostName="$(HOSTNAME)" \
 		$(APP_NAME) \
 		./chart
 
@@ -117,9 +141,23 @@ production-setup: decrypt_production_dotenv
 production-setup:
 	export ENVIRONMENT=production; \
 	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
-	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init &&
-	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply
+	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply &&
+	$(MAKE) configure-cluster-production;
+
+configure-cluster-production: write_kubeconfig_production
+configure-cluster-production:
+	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
+	$(KUBECTL) create ns $(APP_NAMESPACE) && \
+	$(KUBECTL) create secret docker-registry registry \
+		--docker-server="$$IMAGE_REPO" \
+		--docker-username="$$IMAGE_REPO_USERNAME" \
+		--docker-password="$$IMAGE_REPO_PASSWORD" &&
+	$(KUBECTL_IN_APP_NS) patch serviceaccount default \
+		-p '{"imagePullSecrets":[{"name":"docker-registry"}]}' && \
+	$(HELM) upgrade --install ingress-nginx ingress-nginx \
+  --repo https://kubernetes.github.io/ingress-nginx \
+  --namespace ingress-nginx --create-namespace
 
 production-deploy: decrypt_production_dotenv write_kubeconfig_production
 production-deploy:
@@ -127,11 +165,11 @@ production-deploy:
 	export ENVIRONMENT=production; \
 	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
 	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
-	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
 	image_name_template="$$IMAGE_REPO/$(APP_NAME)-$(PERCENT)s:$(COMMIT_SHA)"; \
-	$(HELM) upgrade \
+	$(HELM_IN_APP_NS) upgrade --install \
 		--set frontend_image_name="$$(printf "$$image_name_template" frontend)" \
 		--set backend_image_name="$$(printf "$$image_name_template" backend)" \
+		--set ingress.hostName="$(HOSTNAME)" \
 		$(APP_NAME) \
 		./chart
 
@@ -154,7 +192,6 @@ decrypt_integration_dotenv:
 	$(DOCKER_COMPOSE_CI) run --rm decrypt-env;
 
 write_kubeconfig_integration:
-	rm -rf /tmp/kubeconfig; \
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	export ENVIRONMENT=integration; \
@@ -162,7 +199,6 @@ write_kubeconfig_integration:
 	$(DOCKER_COMPOSE_AWS) run --rm update-eks-kubeconfig; \
 
 write_kubeconfig_production:
-	rm -rf /tmp/kubeconfig; \
 	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
 	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	export ENVIRONMENT=production; \

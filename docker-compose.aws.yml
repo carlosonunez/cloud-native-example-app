@@ -22,6 +22,17 @@ services:
     command:
       - -c
       - |
+        if test -f /tmp/.aws-kubeconfig-exp
+        then
+          now=$(date +%s)
+          exp=$(cat /tmp/.aws-kubeconfig-exp)
+          if test "$$now" -lt "$$exp"
+          then
+            >&2 echo "INFO: EKS cluster token still valid; returning previous Kubeconfig"
+            exit 0
+          fi
+        fi
+        test -f /tmp/kubeconfig && rm  /tmp/kubeconfig
         server=$(aws eks describe-cluster --name "$CLUSTER_NAME" --query 'cluster.endpoint' --output text)
         token=$(aws eks get-token --cluster-name "$CLUSTER_NAME" --query 'status.token' --output text)
         cert_data=$(aws eks describe-cluster --name "$CLUSTER_NAME" --query 'cluster.certificateAuthority.data' --output text)
@@ -45,6 +56,7 @@ services:
               cluster: cluster
               user: user
         EOF
+        date -d "+10 minutes" +%s > /tmp/.aws-kubeconfig-exp
   obtain-aws-session-credentials:
     extends: aws
     environment:
