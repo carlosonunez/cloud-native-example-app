@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-frontend-deployment
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    component: frontend
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        component: frontend
+    spec:
+      containers:
+      - image: {{ .Values.frontend_image_name }}
+        name: {{ .Release.Name}}-frontend
+        env:
+          - name: BACKEND_URL
+            value: "/backend"
+        ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-backend-deployment
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    component: backend
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        component: backend
+    spec:
+      containers:
+      - image: {{ .Values.backend_image_name }}
+        name: {{ .Release.Name}}-backend
+        ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
