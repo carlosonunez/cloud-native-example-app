@@ -1,13 +1,5 @@
-data "aws_caller_identity" "self" {}
-
 data "aws_region" "current" {}
-
-resource "random_string" "role_suffix" {
-  length  = 8
-  special = false
-  upper   = false
-  numeric = false
-}
+data "aws_caller_identity" "self" {}
 
 module "eks" {
   source                         = "terraform-aws-modules/eks/aws"
