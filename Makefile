@@ -4,12 +4,15 @@ APP_NAME=example-cloud-native-app
 
 # Hide orphaned container warnings that can appear if docker-compose doesn't
 # "down" entirely.
-DOCKER_COMPOSE := docker-compose --log-level INFO
-DOCKER_COMPOSE_CI := docker-compose --log-level INFO -f docker-compose.ci.yml
-DOCKER_COMPOSE_TERRAFORM := docker-compose --log-level INFO -f docker-compose.terraform.yaml
-DOCKER_COMPOSE_AWS := docker-compose --log-level INFO -f docker-compose.aws.yml
+DOCKER_COMPOSE := docker-compose --log-level ERROR
+DOCKER_COMPOSE_CI := docker-compose --log-level ERROR -f docker-compose.ci.yml
+DOCKER_COMPOSE_TERRAFORM := docker-compose --log-level ERROR -f docker-compose.terraform.yaml
+DOCKER_COMPOSE_AWS := docker-compose --log-level ERROR -f docker-compose.aws.yml
 COMMIT_SHA := $(shell git rev-parse --short HEAD)
 HELM := $(DOCKER_COMPOSE_CI) run --rm helm --kubeconfig /tmp/kubeconfig
+
+# There's no other way to escape percent signs in Make (that I know of).
+PERCENT := %
 
 .PHONY: build push \
 	unit-setup unit-tests unit-teardown \
@@ -85,9 +88,10 @@ integration-deploy:
 	export ENVIRONMENT=integration; \
 	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
-	image_name="$$IMAGE_REPO/$(APP_NAME):$(COMMIT_SHA)"; \
+	image_name_template="$$IMAGE_REPO/$(APP_NAME)-$(PERCENT)s:$(COMMIT_SHA)"; \
 	$(HELM) upgrade \
-		--set image_name="$$image_name" \
+		--set frontend_image_name="$$(printf "$$image_name_template" frontend)" \
+		--set backend_image_name="$$(printf "$$image_name_template" backend)" \
 		$(APP_NAME) \
 		./chart
 
@@ -124,11 +128,10 @@ production-deploy:
 	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
 	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-output kubeconfig > /tmp/kubeconfig; \
-	frontend_image_name="$$IMAGE_REPO/$(APP_NAME)-frontend:$(COMMIT_SHA)"; \
-	backend_image_name="$$IMAGE_REPO/$(APP_NAME)-backend:$(COMMIT_SHA)"; \
+	image_name_template="$$IMAGE_REPO/$(APP_NAME)-$(PERCENT)s:$(COMMIT_SHA)"; \
 	$(HELM) upgrade \
-		--set frontend_image_name="$$frontend_image_name" \
-		--set backend_image_name="$$backend_image_name" \
+		--set frontend_image_name="$$(printf "$$image_name_template" frontend)" \
+		--set backend_image_name="$$(printf "$$image_name_template" backend)" \
 		$(APP_NAME) \
 		./chart
 
