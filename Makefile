@@ -125,11 +125,15 @@ integration-tests:
 	export APP_URL=https://$(APP_NAME).$(CLUSTER_FQDN); \
 	$(DOCKER_COMPOSE) run --rm integration-tests;
 
-integration-teardown: decrypt_integration_dotenv
+# NOTE: We need to delete the nginx ingress controller before we delete the
+# cluster. Otherwise, the load balancer that it creates will reside in the VPC
+# and prevent the Terraform destroy from completing.
+integration-teardown: decrypt_integration_dotenv write_kubeconfig_integration
 integration-teardown:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
 	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	$(HELM) uninstall ingress-nginx; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-destroy
 
