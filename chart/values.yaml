@@ -1,0 +1,10 @@
+# frontend_image_name: The OCI image for the example-app's frontend.
+frontend_image_name: "you-forgot-to-set-this-see-makefile"
+
+# backend_image_name: The OCI image for the example-app's backend.
+backend_image_name: "you-forgot-to-set-this-see-makefile"
+
+# ingress: Ingress settings.
+ingress:
+  # ingress.hostName: The hostname to serve the app from. The app name will be appended to it.
+  hostName: "you-forgot-to-set-this-see-makefile"

@@ -37,11 +37,11 @@ push:
 		done
 
 unit-setup:
-	$(DOCKER_COMPOSE) up -d frontend backend
+	>&2 echo "No setup for unit tests needed!"
 
 unit-tests:
-	$(DOCKER_COMPOSE) run --rm unit-tests-frontend &&
-	$(DOCKER_COMPOSE) run --rm unit-tests-backend
+	$(DOCKER_COMPOSE) run --build --rm unit-tests-frontend && \
+	$(DOCKER_COMPOSE) run --build --rm unit-tests-backend
 
 unit-teardown:
 	$(DOCKER_COMPOSE) down
