@@ -1,4 +1,7 @@
 cscope.*
 tags
 .env*
+terraform.*
+.terraform.*
+*.tfstate
 */bin

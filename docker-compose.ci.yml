@@ -1,5 +1,12 @@
 version: '2.2'
 services:
+  helm:
+    build:
+      dockerfile: helm.Dockerfile
+      context: .
+    volumes:
+      - ${TMPDIR:-/tmp}/kubeconfig:/tmp/kubeconfig
+      - $PWD/chart:/chart
   gpg:
     build:
       dockerfile: gpg.Dockerfile
