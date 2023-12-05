@@ -152,7 +152,7 @@ integration-teardown:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
 	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
-	$(HELM) uninstall ingress-nginx; \
+	$(HELM) uninstall -n ingress-nginx ingress-nginx; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-destroy
 
