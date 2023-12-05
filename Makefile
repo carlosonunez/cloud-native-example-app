@@ -129,10 +129,19 @@ integration-deploy:
 		$(APP_NAME) \
 		./chart
 
-integration-tests: decrypt_integration_dotenv
+integration-tests: decrypt_integration_dotenv write_kubeconfig_integration
 integration-tests:
+	lb=$$($(KUBECTL) get svc -n ingress-nginx ingress-nginx-controller \
+		 -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'); \
+	if test -z "$$lb"; \
+	then \
+		>&2 echo "ERROR: Couldn't find ingress-nginx LB."; \
+		exit 1; \
+	fi; \
 	export ENVIRONMENT=integration; \
-	export APP_URL=https://$(APP_NAME).$(CLUSTER_FQDN); \
+	export FQDN="$(APP_NAME).$(HOSTNAME)"; \
+	export IP=$$(host -4 "$$lb" | awk '{print $$NF}' | sort -R | tail -1); \
+	export BACKEND_URL="$${FRONTEND_URL}/backend"; \
 	$(DOCKER_COMPOSE) run --rm integration-tests;
 
 # NOTE: We need to delete the nginx ingress controller before we delete the
