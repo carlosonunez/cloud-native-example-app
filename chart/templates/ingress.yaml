@@ -4,6 +4,7 @@ metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
 spec:
+  ingressClassName: nginx
   rules:
     - host: {{ .Release.Name }}.{{ .Values.ingress.hostName }}
       http:
@@ -12,13 +13,13 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}-frontend
+                name: {{ .Release.Name }}-frontend-svc
                 port:
                   name: http
           - path: '/backend'
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}-backend
+                name: {{ .Release.Name }}-backend-svc
                 port:
                   name: http
