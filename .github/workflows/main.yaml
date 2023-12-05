@@ -46,6 +46,24 @@ jobs:
         run: make push-images
         env:
           ENV_PASSWORD: ${{ secrets.env_password }}
+  security-tests:
+    name: Run Security Tests
+    needs:
+      - unit
+      - build-and-push-images
+    steps:
+      - uses: actions/checkout@v1
+        name: Checkout
+
+      - uses: KengoTODA/actions-setup-docker-compose@main
+        name: Setup Docker Compose
+        with:
+          version: '2.21.0'
+
+      - name: Scan image
+        run: make security-scan-image
+        env:
+          ENV_PASSWORD: ${{ secrets.env_password }}
   integration-tests:
     name: Integration Tests
     needs:

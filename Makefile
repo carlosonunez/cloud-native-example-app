@@ -10,6 +10,7 @@ DOCKER_COMPOSE := docker-compose --log-level ERROR
 DOCKER_COMPOSE_CI := docker-compose --log-level ERROR -f docker-compose.ci.yml
 DOCKER_COMPOSE_TERRAFORM := docker-compose --log-level ERROR -f docker-compose.terraform.yaml
 DOCKER_COMPOSE_AWS := docker-compose --log-level ERROR -f docker-compose.aws.yml
+DOCKER_COMPOSE_SEC := docker-compose --log-level ERROR -f docker-compose.security.yaml
 COMMIT_SHA := $(shell git rev-parse --short HEAD)
 HELM := $(DOCKER_COMPOSE_CI) run --rm helm --kubeconfig /tmp/kubeconfig
 KUBECTL := kubectl --kubeconfig $(TMPDIR)/kubeconfig
@@ -24,6 +25,7 @@ PERCENT := %
 
 .PHONY: build push \
 	unit-setup unit-tests unit-teardown \
+	security-scan-image \
 	integration-setup integration-deploy integration-tests integration-teardown \
 	production-setup production-deploy
 
@@ -46,6 +48,14 @@ push:
 			image_name="$$IMAGE_REPO/$(APP_NAME)-$${service}:$(COMMIT_SHA)"; \
 			docker push "$$image_name"; \
 		done
+
+security-scan-image:
+	for service in frontend backend; \
+	do \
+		export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
+		export APP_IMAGE="$$IMAGE_REPO/$(APP_NAME)-$${service}:$(COMMIT_SHA)"; \
+		$(DOCKER_COMPOSE_SEC) run --rm --build scan-image; \
+	done;
 
 unit-setup:
 	>&2 echo "No setup for unit tests needed!"

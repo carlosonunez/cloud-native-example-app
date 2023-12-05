@@ -1,0 +1,16 @@
+version: '2.6'
+services:
+  trivy:
+    image: aquasec/trivy:0.47.0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock
+  scan-image:
+    extends: trivy
+    environment:
+      - APP_IMAGE
+      - TRIVY_USERNAME=$IMAGE_USERNAME
+      - TRIVY_PASSWORD=$IMAGE_PASSWORD
+    command:
+      - image
+      - "$APP_IMAGE"
