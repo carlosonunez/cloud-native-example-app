@@ -10,3 +10,6 @@ repository.
   real-world setting. Use Cert Manager and Let's Encrypt to demonstrate how
   easily HTTPS can be added into Kubernetes-backed applications. _This will
   require you to have a DNS zone or the ability to modify /etc/hosts._
+- **Healthiness Probes**: This app is missing healthchecks. These are easy
+  enough to add, but I didn't want to wait the 15+ minutes for a cluster to get
+  spun up, so I left them out.
