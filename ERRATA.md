@@ -13,3 +13,15 @@ repository.
 - **Healthiness Probes**: This app is missing healthchecks. These are easy
   enough to add, but I didn't want to wait the 15+ minutes for a cluster to get
   spun up, so I left them out.
+- **Infrastructure integration testing**. See [Infra integration
+  testing](#infra-integration-testing) for more.
+
+## Infra Integration Testing
+
+This codebase includes an example of validation-based infrastructure testing.
+This approach tests that the infrastructure code will generate the
+infrastructure we expect before applying any configuration.
+
+A more complete example would follow up on this by adding integration tests to
+ensure that the infrastructure created matches our expectations. There are
+several tools that help with this, like Goss and Testinfra.
