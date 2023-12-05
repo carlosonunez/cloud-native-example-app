@@ -1,6 +1,10 @@
 version: '2.6'
 volumes:
   tfdata: {}
+  localstack-data: {}
+  infra-under-test: {}
+  gocache: {}
+  gomod: {}
 services:
   terraform:
     image: hashicorp/terraform:1.6.5
@@ -15,6 +19,49 @@ services:
       - tfdata:/terraform-data
       - $PWD/infra:/infra
     working_dir: /infra
+  infra-tests:
+    build:
+      dockerfile: terratest.Dockerfile
+      context: .nilcxt
+    image: golang:1.21-alpine
+    depends_on:
+      localstack:
+        condition: service_started
+      generate-test-infra-dir:
+        condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: LSIAfoobar
+      AWS_SECRET_ACCESS_KEY: whatever
+      AWS_REGION: us-east-2
+      AWS_ENDPOINT_URL: http://localstack:4566
+    volumes:
+      - $PWD/infra/tests:/go/infra-tests/src
+      - infra-under-test:/infra
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
+    working_dir: /go/infra-tests/src
+    entrypoint: [ "go" ]
+    command:
+      - test
+      - -failfast
+      - -v
+      - .
+  localstack:
+    image: localstack/localstack-pro:latest
+    environment:
+      - LOCALSTACK_AUTH_TOKEN
+      - SERVICES=eks,ec2,sts,iam,logs,cloudwatch,kms
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - PERSISTENCE=/tmp/data
+    volumes:
+      - localstack-data:/tmp/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test:
+        - CMD
+        - sh
+        - -c
+        - 'test "$(curl -sS -w %{http_code} http://localhost:4566)" == "200"'
   terraform-init:
     extends: terraform
     entrypoint: sh
@@ -48,3 +95,15 @@ services:
     command:
       - destroy
       - -auto-approve
+  generate-test-infra-dir:
+    image: bash:5
+    volumes:
+      - $PWD/infra:/src
+      - infra-under-test:/dest
+    command:
+      - -c
+      - |
+        rm -rf /dest/*
+        cp -v /src/* /dest/
+        >&2 echo "INFO: Swapping provider config with mocked provider"
+        cp /src/tests/config.tf /dest/config.tf
