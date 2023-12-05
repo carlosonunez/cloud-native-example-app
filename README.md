@@ -107,6 +107,28 @@ Creating your own dotenv is very easy. In a terminal:
 
 `make unit-tests`.
 
+### Infrastructure Testing
+
+Our example app also provides an example of how to perform infrastructure
+testing locally. This stack uses [Localstack](https://localstack.cloud) and
+[Terratest](https://terratest.gruntwork.io) to validate our infrastructure
+in a mock environment.
+
+> ⚠️  You will need a LocalStack Pro subscription in order to run these tests.
+> You can sign up for a 14-day free trial [here](https://app.localstack.cloud).
+> Once you sign up, copy your `LOCALSTACK_AUTH_TOKEN`, paste it into
+> `.env.integration` and, optionally, re-encrypt it with
+> `make encrypt_integration_dotenv`.
+
+#### Prerequisites
+
+- Docker and Docker Compose
+- LocalStack Pro (see above)
+
+#### Instructions
+
+`make infra-tests`
+
 ### Integration Testing
 
 #### Prerequisites

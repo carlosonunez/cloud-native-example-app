@@ -26,6 +26,7 @@ PERCENT := %
 .PHONY: build push \
 	unit-setup unit-tests unit-teardown \
 	security-scan-image \
+	infra-tests \
 	integration-setup integration-deploy integration-tests integration-teardown \
 	production-setup production-deploy
 
@@ -66,6 +67,17 @@ unit-tests:
 
 unit-teardown:
 	$(DOCKER_COMPOSE) down
+
+infra-tests:
+	export $$(grep -E '^LOCALSTACK_AUTH_TOKEN' "$(PWD)/.env.integration" | xargs -0); \
+	if ! test -f "$(PWD)/.nilcxt/terratest.Dockerfile"; \
+	then \
+		mkdir -p $(PWD)/.nilcxt && cp $(PWD)/terratest.Dockerfile $(PWD)/.nilcxt/terratest.Dockerfile; \
+	fi; \
+	$(DOCKER_COMPOSE_TERRAFORM) run --build --rm infra-tests; \
+	rc=$$?; \
+	$(DOCKER_COMPOSE_TERRAFORM) down; \
+	exit "$$rc";
 
 # NOTE: integration-{setup,deploy,teardown}
 #
