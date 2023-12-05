@@ -6,7 +6,8 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app: {{ .Release.Name }}-frontend
+    app: {{ .Release.Name }}
+    component: frontend
   ports:
     - name: http
       targetPort: 8080
@@ -20,7 +21,8 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app: {{ .Release.Name }}-backend
+    app: {{ .Release.Name }}
+    component: backend
   ports:
     - name: http
       targetPort: 8080

@@ -46,11 +46,20 @@ services:
       - test
       - -failfast
       - .
-  integration-tests-frontend:
-    extends: frontend
+  integration-tests:
+    image: golang:1.21-alpine
+    volumes:
+      - $PWD/app/frontend:/go/github.com/carlosonunez/example-app/src
+      - gocache:/root/.cache/go-build
+      - gomod:/go/pkg/mod
+    working_dir: /go/github.com/carlosonunez/example-app/src
     entrypoint: go
     environment:
-      INTEGRATION: true
+      - INTEGRATION=true
+      - FRONTEND_URL=http://$FQDN
+      - BACKEND_URL=http://$FQDN/backend
+    extra_hosts:
+      - "$FQDN:$IP"
     command:
       - test
-      - app/frontend_test.go
+      - ./integration_test.go
