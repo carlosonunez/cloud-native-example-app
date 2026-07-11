@@ -2,7 +2,6 @@ version: '2.2'
 services:
   aws:
     image: amazon/aws-cli:2.13.9
-    env_file: .env
     environment:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
@@ -13,7 +12,7 @@ services:
   update-eks-kubeconfig:
     extends: aws
     volumes:
-      - ${TMPDIR:-/tmp}:/tmp
+      - ${KUBECONFIG_DIR:-/tmp}:/tmp
     environment:
       - CLUSTER_NAME
     # This command writes a kubeconfig that does not require retrieving
@@ -62,7 +61,7 @@ services:
     environment:
       AWS_SESSION_TOKEN: ""
     volumes:
-      - ${TMPDIR:-/tmp}/.aws-sts-token-data:/tmp
+      - ${TOKEN_DATA_DIR:-/tmp}:/tmp
     entrypoint: sh
     command:
       - -c

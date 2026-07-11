@@ -26,6 +26,12 @@ func TestRealFrontendWorks(t *testing.T) {
 	assert.Contains(t, string(got), "Click the button below")
 }
 func TestRealBackendWorks(t *testing.T) {
+	if os.Getenv("INTEGRATION") != "true" {
+		t.Skip("skipping integration test")
+	}
+	if os.Getenv("BACKEND_URL") == "" {
+		t.Error("BACKEND_URL needs to be defined")
+	}
 	resp, err := http.Get(os.Getenv("BACKEND_URL"))
 	require.NoError(t, err)
 	assert.Equal(t, resp.StatusCode, 200)

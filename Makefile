@@ -1,3 +1,6 @@
+# NOTE: There is a lot of DRY between the 'integration' and 'production' Make
+# targets. Sorry about that! Reducing DRY is an exercise for the reader. :D
+
 SHELL := /usr/bin/env bash
 MAKEFLAGS += --silent
 APP_NAME := example-cloud-native-app
@@ -23,12 +26,26 @@ HOSTNAME := example.com
 # There's no other way to escape percent signs in Make (that I know of).
 PERCENT := %
 
-.PHONY: build push \
+.PHONY: clean \
+	frontend backend \
+	build push \
 	unit-setup unit-tests unit-teardown \
 	security-scan-image \
 	infra-tests \
 	integration-setup integration-deploy integration-tests integration-teardown \
 	production-setup production-deploy
+
+clean:
+	$(DOCKER_COMPOSE) down;
+	$(DOCKER_COMPOSE_CI) down;
+	$(DOCKER_COMPOSE_AWS) down;
+	$(DOCKER_COMPOSE_TERRAFORM) down;
+
+frontend:
+	$(DOCKER_COMPOSE) up -d frontend;
+
+backend:
+	$(DOCKER_COMPOSE) up -d backend;
 
 build: decrypt_production_dotenv
 build:
@@ -97,7 +114,7 @@ infra-tests:
 integration-setup: decrypt_integration_dotenv
 integration-setup:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
-	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	export $$($(MAKE) generate_temp_aws_credentials_integration) || exit 1; \
 	export ENVIRONMENT=integration; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-apply && \
@@ -123,7 +140,7 @@ integration-setup-preview: decrypt_integration_dotenv
 integration-setup-preview:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
-	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	export $$($(MAKE) generate_temp_aws_credentials_integration) || exit 1; \
 	env | grep AWS; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-plan
@@ -163,7 +180,7 @@ integration-teardown: decrypt_integration_dotenv write_kubeconfig_integration
 integration-teardown:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
 	export ENVIRONMENT=integration; \
-	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	export $$($(MAKE) generate_temp_aws_credentials_integration) || exit 1; \
 	$(HELM) uninstall -n ingress-nginx ingress-nginx; \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-init && \
 	$(DOCKER_COMPOSE_TERRAFORM) run --rm terraform-destroy
@@ -199,7 +216,7 @@ production-deploy:
 	set -eo pipefail; \
 	export ENVIRONMENT=production; \
 	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
-	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	export $$($(MAKE) generate_temp_aws_credentials_production) || exit 1; \
 	image_name_template="$$IMAGE_REPO/$(APP_NAME)-$(PERCENT)s:$(COMMIT_SHA)"; \
 	$(HELM_IN_APP_NS) upgrade --install \
 		--set frontend_image_name="$$(printf "$$image_name_template" frontend)" \
@@ -228,24 +245,38 @@ decrypt_integration_dotenv:
 
 write_kubeconfig_integration:
 	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
-	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	export $$($(MAKE) generate_temp_aws_credentials_integration) || exit 1; \
 	export ENVIRONMENT=integration; \
 	export CLUSTER_NAME=$$($(DOCKER_COMPOSE_TERRAFORM) run --rm terraform output -raw cluster_name) || exit 1; \
+	export KUBECONFIG_DIR=$(TMPDIR); \
 	$(DOCKER_COMPOSE_AWS) run --rm update-eks-kubeconfig; \
 
 write_kubeconfig_production:
 	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
-	export $$($(MAKE) generate_temp_aws_credentials) || exit 1; \
+	export $$($(MAKE) generate_temp_aws_credentials_production) || exit 1; \
 	export ENVIRONMENT=production; \
 	export CLUSTER_NAME=$$($(DOCKER_COMPOSE_TERRAFORM) run --rm terraform output -raw cluster_name) || exit 1; \
+	export KUBECONFIG_DIR=$(TMPDIR); \
 	$(DOCKER_COMPOSE_AWS) run --rm update-eks-kubeconfig; \
 
 # NOTE: The directory we're using to cache AWS tokens is `mkdir`ed ahead of time to work around
 # `EPERM` errors that occur with container engines that use sshfs to mount directories into the
 # containerd VM, like Lima. This is still an open issue as of 2023-12-02.
 # https://github.com/lima-vm/lima/issues/231
-generate_temp_aws_credentials:
-	mkdir -p $${TMPDIR:-/tmp}/.aws-sts-token-data; \
+generate_temp_aws_credentials_integration:
+	export TOKEN_DATA_DIR="$${TMPDIR:-/tmp}/.aws-sts-token-data-integration"; \
+	mkdir -p "$$TOKEN_DATA_DIR"; \
+	export $$(grep -Ev '^#' "$(PWD)/.env.integration" | xargs -0); \
+	export AWS_SESSION_NAME=$(APP_NAME)-aws-session; \
+	aws_session=$$($(DOCKER_COMPOSE_AWS) run --rm obtain-aws-session-credentials | sed -E 's/(^"|"$$)//'); \
+	if test -z "$$aws_session"; \
+	then >&2 echo "ERROR: Unable to receive creds from AWS with AK/SK provided." && exit 1; \
+	fi; \
+	echo -e "$$aws_session" | grep -Ev '^$$';
+
+generate_temp_aws_credentials_production:
+	export TOKEN_DATA_DIR="$${TMPDIR:-/tmp}/.aws-sts-token-data-production"; \
+	mkdir -p "$$TOKEN_DATA_DIR"; \
 	export $$(grep -Ev '^#' "$(PWD)/.env.production" | xargs -0); \
 	export AWS_SESSION_NAME=$(APP_NAME)-aws-session; \
 	aws_session=$$($(DOCKER_COMPOSE_AWS) run --rm obtain-aws-session-credentials | sed -E 's/(^"|"$$)//'); \
